@@ -287,6 +287,7 @@ bool profile_gpu = false;
 // Constants.
 
 static const String NULL_DISPLAY_DRIVER("headless");
+static const String EMBEDDED_DISPLAY_DRIVER("embedded");
 static const String NULL_AUDIO_DRIVER("Dummy");
 
 // The length of the longest column in the command-line help we should align to
@@ -694,10 +695,10 @@ void Main::print_help(const char *p_binary) {
 	print_help_option("", "If incompatibilities or errors are detected, the exit code will be non-zero.\n");
 	print_help_option("--benchmark", "Benchmark the run time and print it to console.\n", CLI_OPTION_AVAILABILITY_EDITOR);
 	print_help_option("--benchmark-file <path>", "Benchmark the run time and save it to a given file in JSON format. The path should be absolute.\n", CLI_OPTION_AVAILABILITY_EDITOR);
+#endif // TOOLS_ENABLED
 #ifdef TESTS_ENABLED
-	print_help_option("--test [--help]", "Run unit tests. Use --test --help for more information.\n", CLI_OPTION_AVAILABILITY_EDITOR);
-#endif
-#endif
+	print_help_option("--test [--help]", "Run unit tests. Use --test --help for more information.\n");
+#endif // TESTS_ENABLED
 	OS::get_singleton()->print("\n");
 }
 
@@ -1396,6 +1397,10 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 			audio_driver = NULL_AUDIO_DRIVER;
 			display_driver = NULL_DISPLAY_DRIVER;
+
+		} else if (arg == "--embedded") { // Enable embedded mode.
+
+			display_driver = EMBEDDED_DISPLAY_DRIVER;
 
 		} else if (arg == "--log-file") { // write to log file
 

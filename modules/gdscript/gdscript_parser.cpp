@@ -196,7 +196,7 @@ void GDScriptParser::push_warning(const Node *p_source, GDScriptWarning::Code p_
 	if (is_ignoring_warnings) {
 		return;
 	}
-	if (GLOBAL_GET("debug/gdscript/warnings/exclude_addons") && script_path.begins_with("res://addons/")) {
+	if (GLOBAL_GET_CACHED(bool, "debug/gdscript/warnings/exclude_addons") && script_path.begins_with("res://addons/")) {
 		return;
 	}
 	GDScriptWarning::WarnLevel warn_level = (GDScriptWarning::WarnLevel)(int)GLOBAL_GET(GDScriptWarning::get_settings_path_from_code(p_code));
@@ -536,7 +536,7 @@ void GDScriptParser::synchronize() {
 			case GDScriptTokenizer::Token::FUNC:
 			case GDScriptTokenizer::Token::STATIC:
 			case GDScriptTokenizer::Token::VAR:
-			case GDScriptTokenizer::Token::CONST:
+			case GDScriptTokenizer::Token::TK_CONST:
 			case GDScriptTokenizer::Token::SIGNAL:
 			//case GDScriptTokenizer::Token::IF: // Can also be inside expressions.
 			case GDScriptTokenizer::Token::FOR:
@@ -1020,7 +1020,7 @@ void GDScriptParser::parse_class_body(bool p_is_multiline) {
 					current_class->has_static_data = true;
 				}
 				break;
-			case GDScriptTokenizer::Token::CONST:
+			case GDScriptTokenizer::Token::TK_CONST:
 				parse_class_member(&GDScriptParser::parse_constant, AnnotationInfo::CONSTANT, "constant");
 				break;
 			case GDScriptTokenizer::Token::SIGNAL:
@@ -1087,7 +1087,27 @@ void GDScriptParser::parse_class_body(bool p_is_multiline) {
 				// Display a completion with identifiers.
 				make_completion_context(COMPLETION_IDENTIFIER, nullptr);
 				advance();
-				push_error(vformat(R"(Unexpected %s in class body.)", previous.get_debug_name()));
+				if (previous.get_identifier() == "export") {
+					push_error(R"(The "export" keyword was removed in Godot 4. Use an export annotation ("@export", "@export_range", etc.) instead.)");
+				} else if (previous.get_identifier() == "tool") {
+					push_error(R"(The "tool" keyword was removed in Godot 4. Use the "@tool" annotation instead.)");
+				} else if (previous.get_identifier() == "onready") {
+					push_error(R"(The "onready" keyword was removed in Godot 4. Use the "@onready" annotation instead.)");
+				} else if (previous.get_identifier() == "remote") {
+					push_error(R"(The "remote" keyword was removed in Godot 4. Use the "@rpc" annotation with "any_peer" instead.)");
+				} else if (previous.get_identifier() == "remotesync") {
+					push_error(R"(The "remotesync" keyword was removed in Godot 4. Use the "@rpc" annotation with "any_peer" and "call_local" instead.)");
+				} else if (previous.get_identifier() == "puppet") {
+					push_error(R"(The "puppet" keyword was removed in Godot 4. Use the "@rpc" annotation with "authority" instead.)");
+				} else if (previous.get_identifier() == "puppetsync") {
+					push_error(R"(The "puppetsync" keyword was removed in Godot 4. Use the "@rpc" annotation with "authority" and "call_local" instead.)");
+				} else if (previous.get_identifier() == "master") {
+					push_error(R"(The "master" keyword was removed in Godot 4. Use the "@rpc" annotation with "any_peer" and perform a check inside the function instead.)");
+				} else if (previous.get_identifier() == "mastersync") {
+					push_error(R"(The "mastersync" keyword was removed in Godot 4. Use the "@rpc" annotation with "any_peer" and "call_local", and perform a check inside the function instead.)");
+				} else {
+					push_error(vformat(R"(Unexpected %s in class body.)", previous.get_debug_name()));
+				}
 				break;
 		}
 		if (token.type != GDScriptTokenizer::Token::STATIC) {
@@ -1875,7 +1895,7 @@ GDScriptParser::Node *GDScriptParser::parse_statement() {
 			advance();
 			result = parse_variable(false, false);
 			break;
-		case GDScriptTokenizer::Token::CONST:
+		case GDScriptTokenizer::Token::TK_CONST:
 			advance();
 			result = parse_constant(false);
 			break;
@@ -2135,9 +2155,9 @@ GDScriptParser::ForNode *GDScriptParser::parse_for() {
 	}
 
 	if (n_for->datatype_specifier == nullptr) {
-		consume(GDScriptTokenizer::Token::IN, R"(Expected "in" or ":" after "for" variable name.)");
+		consume(GDScriptTokenizer::Token::TK_IN, R"(Expected "in" or ":" after "for" variable name.)");
 	} else {
-		consume(GDScriptTokenizer::Token::IN, R"(Expected "in" after "for" variable type specifier.)");
+		consume(GDScriptTokenizer::Token::TK_IN, R"(Expected "in" after "for" variable type specifier.)");
 	}
 
 	n_for->list = parse_expression(false);
@@ -2790,7 +2810,7 @@ GDScriptParser::ExpressionNode *GDScriptParser::parse_binary_not_in_operator(Exp
 	UnaryOpNode *operation = alloc_node<UnaryOpNode>();
 	reset_extents(operation, p_previous_operand);
 	update_extents(operation);
-	consume(GDScriptTokenizer::Token::IN, R"(Expected "in" after "not" in content-test operator.)");
+	consume(GDScriptTokenizer::Token::TK_IN, R"(Expected "in" after "not" in content-test operator.)");
 	ExpressionNode *in_operation = parse_binary_operator(p_previous_operand, p_can_assign);
 	operation->operation = UnaryOpNode::OP_LOGIC_NOT;
 	operation->variant_op = Variant::OP_NOT;
@@ -2870,7 +2890,7 @@ GDScriptParser::ExpressionNode *GDScriptParser::parse_binary_operator(Expression
 			operation->operation = BinaryOpNode::OP_LOGIC_OR;
 			operation->variant_op = Variant::OP_OR;
 			break;
-		case GDScriptTokenizer::Token::IN:
+		case GDScriptTokenizer::Token::TK_IN:
 			operation->operation = BinaryOpNode::OP_CONTENT_TEST;
 			operation->variant_op = Variant::OP_IN;
 			break;
@@ -3665,7 +3685,7 @@ GDScriptParser::TypeNode *GDScriptParser::parse_type(bool p_allow_void) {
 	TypeNode *type = alloc_node<TypeNode>();
 	make_completion_context(p_allow_void ? COMPLETION_TYPE_NAME_OR_VOID : COMPLETION_TYPE_NAME, type);
 	if (!match(GDScriptTokenizer::Token::IDENTIFIER)) {
-		if (match(GDScriptTokenizer::Token::VOID)) {
+		if (match(GDScriptTokenizer::Token::TK_VOID)) {
 			if (p_allow_void) {
 				complete_extents(type);
 				TypeNode *void_type = type;
@@ -4096,11 +4116,11 @@ GDScriptParser::ParseRule *GDScriptParser::get_rule(GDScriptTokenizer::Token::Ty
 		{ nullptr,                                          nullptr,                                        PREC_NONE }, // BREAKPOINT,
 		{ nullptr,                                          nullptr,                                        PREC_NONE }, // CLASS,
 		{ nullptr,                                          nullptr,                                        PREC_NONE }, // CLASS_NAME,
-		{ nullptr,                                          nullptr,                                        PREC_NONE }, // CONST,
+		{ nullptr,                                          nullptr,                                        PREC_NONE }, // TK_CONST,
 		{ nullptr,                                          nullptr,                                        PREC_NONE }, // ENUM,
 		{ nullptr,                                          nullptr,                                        PREC_NONE }, // EXTENDS,
 		{ &GDScriptParser::parse_lambda,                    nullptr,                                        PREC_NONE }, // FUNC,
-		{ nullptr,                                          &GDScriptParser::parse_binary_operator,      	PREC_CONTENT_TEST }, // IN,
+		{ nullptr,                                          &GDScriptParser::parse_binary_operator,      	PREC_CONTENT_TEST }, // TK_IN,
 		{ nullptr,                                          &GDScriptParser::parse_type_test,            	PREC_TYPE_TEST }, // IS,
 		{ nullptr,                                          nullptr,                                        PREC_NONE }, // NAMESPACE,
 		{ &GDScriptParser::parse_preload,					nullptr,                                        PREC_NONE }, // PRELOAD,
@@ -4110,7 +4130,7 @@ GDScriptParser::ParseRule *GDScriptParser::get_rule(GDScriptTokenizer::Token::Ty
 		{ &GDScriptParser::parse_call,						nullptr,                                        PREC_NONE }, // SUPER,
 		{ nullptr,                                          nullptr,                                        PREC_NONE }, // TRAIT,
 		{ nullptr,                                          nullptr,                                        PREC_NONE }, // VAR,
-		{ nullptr,                                          nullptr,                                        PREC_NONE }, // VOID,
+		{ nullptr,                                          nullptr,                                        PREC_NONE }, // TK_VOID,
 		{ &GDScriptParser::parse_yield,                     nullptr,                                        PREC_NONE }, // YIELD,
 		// Punctuation
 		{ &GDScriptParser::parse_array,                  	&GDScriptParser::parse_subscript,            	PREC_SUBSCRIPT }, // BRACKET_OPEN,
@@ -4548,14 +4568,9 @@ bool GDScriptParser::export_annotations(AnnotationNode *p_annotation, Node *p_ta
 			return false;
 		}
 
-		if (export_type.is_variant() || export_type.has_no_type()) {
-			if (is_dict) {
-				// Dictionary allowed to have a variant key/value.
-				export_type.kind = GDScriptParser::DataType::BUILTIN;
-			} else {
-				push_error(R"(Cannot use simple "@export" annotation because the type of the initialized value can't be inferred.)", p_annotation);
-				return false;
-			}
+		if (export_type.has_no_type()) {
+			push_error(R"(Cannot use simple "@export" annotation because the type of the initialized value can't be inferred.)", p_annotation);
+			return false;
 		}
 
 		switch (export_type.kind) {
@@ -4604,6 +4619,12 @@ bool GDScriptParser::export_annotations(AnnotationNode *p_annotation, Node *p_ta
 					variable->export_info.hint_string = enum_hint_string;
 					variable->export_info.usage |= PROPERTY_USAGE_CLASS_IS_ENUM;
 					variable->export_info.class_name = String(export_type.native_type).replace("::", ".");
+				}
+			} break;
+			case GDScriptParser::DataType::VARIANT: {
+				if (export_type.is_variant()) {
+					variable->export_info.type = Variant::NIL;
+					variable->export_info.usage |= PROPERTY_USAGE_NIL_IS_VARIANT;
 				}
 			} break;
 			default:

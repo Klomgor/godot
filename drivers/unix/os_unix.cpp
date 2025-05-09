@@ -69,19 +69,18 @@
 #endif
 
 #include <dlfcn.h>
-#include <errno.h>
 #include <poll.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>
-#include <time.h>
 #include <unistd.h>
+#include <cerrno>
+#include <csignal>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
 
 #ifndef RTLD_DEEPBIND
 #define RTLD_DEEPBIND 0
@@ -580,7 +579,7 @@ Dictionary OS_Unix::get_memory_info() const {
 	return meminfo;
 }
 
-#ifndef __GLIBC__
+#if !defined(__GLIBC__) && !defined(WEB_ENABLED)
 void OS_Unix::_load_iconv() {
 #if defined(MACOS_ENABLED) || defined(IOS_ENABLED)
 	String iconv_lib_aliases[] = { "/usr/lib/libiconv.2.dylib" };
@@ -632,7 +631,7 @@ String OS_Unix::multibyte_to_string(const String &p_encoding, const PackedByteAr
 	ERR_FAIL_COND_V_MSG(!_iconv_ok, String(), "Conversion failed: Unable to load libiconv");
 
 	LocalVector<char> chars;
-#ifdef __GLIBC__
+#if defined(__GLIBC__) || defined(WEB_ENABLED)
 	gd_iconv_t ctx = gd_iconv_open("UTF-8", p_encoding.is_empty() ? nl_langinfo(CODESET) : p_encoding.utf8().get_data());
 #else
 	gd_iconv_t ctx = gd_iconv_open("UTF-8", p_encoding.is_empty() ? gd_locale_charset() : p_encoding.utf8().get_data());
@@ -669,7 +668,7 @@ PackedByteArray OS_Unix::string_to_multibyte(const String &p_encoding, const Str
 	CharString charstr = p_string.utf8();
 
 	PackedByteArray ret;
-#ifdef __GLIBC__
+#if defined(__GLIBC__) || defined(WEB_ENABLED)
 	gd_iconv_t ctx = gd_iconv_open(p_encoding.is_empty() ? nl_langinfo(CODESET) : p_encoding.utf8().get_data(), "UTF-8");
 #else
 	gd_iconv_t ctx = gd_iconv_open(p_encoding.is_empty() ? gd_locale_charset() : p_encoding.utf8().get_data(), "UTF-8");
@@ -1229,14 +1228,16 @@ void UnixTerminalLogger::log_error(const char *p_function, const char *p_file, i
 	logf_error("%s%sat: %s (%s:%i)%s\n", gray, indent, p_function, p_file, p_line, reset);
 
 	for (const Ref<ScriptBacktrace> &backtrace : p_script_backtraces) {
-		logf_error("%s%s%s\n", gray, backtrace->format(strlen(indent)).utf8().get_data(), reset);
+		if (!backtrace->is_empty()) {
+			logf_error("%s%s%s\n", gray, backtrace->format(strlen(indent)).utf8().get_data(), reset);
+		}
 	}
 }
 
 UnixTerminalLogger::~UnixTerminalLogger() {}
 
 OS_Unix::OS_Unix() {
-#ifndef __GLIBC__
+#if !defined(__GLIBC__) && !defined(WEB_ENABLED)
 	_load_iconv();
 #endif
 

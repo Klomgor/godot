@@ -1357,7 +1357,7 @@ RDD::TextureID RenderingDeviceDriverD3D12::texture_create(const TextureFormat &p
 	return TextureID(tex_info);
 }
 
-RDD::TextureID RenderingDeviceDriverD3D12::texture_create_from_extension(uint64_t p_native_texture, TextureType p_type, DataFormat p_format, uint32_t p_array_layers, bool p_depth_stencil) {
+RDD::TextureID RenderingDeviceDriverD3D12::texture_create_from_extension(uint64_t p_native_texture, TextureType p_type, DataFormat p_format, uint32_t p_array_layers, bool p_depth_stencil, uint32_t p_mipmaps) {
 	ID3D12Resource *texture = (ID3D12Resource *)p_native_texture;
 
 #if defined(_MSC_VER) || !defined(_WIN32)
@@ -4469,10 +4469,10 @@ void RenderingDeviceDriverD3D12::_command_bind_uniform_set(CommandBufferID p_cmd
 	}
 #endif
 
-	last_bind->root_tables.resources.reserve(shader_set.num_root_params.resources);
 	last_bind->root_tables.resources.clear();
-	last_bind->root_tables.samplers.reserve(shader_set.num_root_params.samplers);
 	last_bind->root_tables.samplers.clear();
+	last_bind->root_tables.resources.reserve(shader_set.num_root_params.resources);
+	last_bind->root_tables.samplers.reserve(shader_set.num_root_params.samplers);
 	last_bind->uses++;
 
 	struct {
