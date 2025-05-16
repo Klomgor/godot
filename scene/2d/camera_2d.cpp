@@ -272,16 +272,17 @@ Transform2D Camera2D::get_camera_transform() {
 	Rect2 screen_rect(-screen_offset + ret_camera_pos, screen_size * zoom_scale);
 
 	if (limit_enabled && (!position_smoothing_enabled || !limit_smoothing_enabled)) {
+		Point2 bottom_right_corner = Point2(screen_rect.position + 2.0 * (camera_pos - screen_rect.position));
 		if (screen_rect.position.x < limit[SIDE_LEFT]) {
 			screen_rect.position.x = limit[SIDE_LEFT];
 		}
 
-		if (screen_rect.position.x + screen_rect.size.x > limit[SIDE_RIGHT]) {
-			screen_rect.position.x = limit[SIDE_RIGHT] - screen_rect.size.x;
+		if (bottom_right_corner.x > limit[SIDE_RIGHT]) {
+			screen_rect.position.x = limit[SIDE_RIGHT] - (bottom_right_corner.x - screen_rect.position.x);
 		}
 
-		if (screen_rect.position.y + screen_rect.size.y > limit[SIDE_BOTTOM]) {
-			screen_rect.position.y = limit[SIDE_BOTTOM] - screen_rect.size.y;
+		if (bottom_right_corner.y > limit[SIDE_BOTTOM]) {
+			screen_rect.position.y = limit[SIDE_BOTTOM] - (bottom_right_corner.y - screen_rect.position.y);
 		}
 
 		if (screen_rect.position.y < limit[SIDE_TOP]) {
@@ -616,14 +617,6 @@ void Camera2D::_make_current(Object *p_which) {
 	}
 }
 
-void Camera2D::_update_process_internal_for_smoothing() {
-	bool is_not_in_scene_or_editor = !(is_inside_tree() && is_part_of_edited_scene());
-	bool is_any_smoothing_valid = position_smoothing_speed > 0 || rotation_smoothing_speed > 0;
-
-	bool enable = is_any_smoothing_valid && is_not_in_scene_or_editor;
-	set_process_internal(enable);
-}
-
 void Camera2D::_set_limit_rect(const Rect2 &p_limit_rect) {
 	Point2 limit_rect_end = p_limit_rect.get_end();
 	set_limit(SIDE_LEFT, p_limit_rect.position.x);
@@ -756,7 +749,7 @@ void Camera2D::set_position_smoothing_speed(real_t p_speed) {
 		return;
 	}
 	position_smoothing_speed = MAX(0, p_speed);
-	_update_process_internal_for_smoothing();
+	_update_process_callback();
 }
 
 real_t Camera2D::get_position_smoothing_speed() const {
@@ -768,7 +761,7 @@ void Camera2D::set_rotation_smoothing_speed(real_t p_speed) {
 		return;
 	}
 	rotation_smoothing_speed = MAX(0, p_speed);
-	_update_process_internal_for_smoothing();
+	_update_process_callback();
 }
 
 real_t Camera2D::get_rotation_smoothing_speed() const {
@@ -793,7 +786,7 @@ Point2 Camera2D::get_camera_screen_center() const {
 
 Size2 Camera2D::_get_camera_screen_size() const {
 	if (is_part_of_edited_scene()) {
-		return Size2(GLOBAL_GET("display/window/size/viewport_width"), GLOBAL_GET("display/window/size/viewport_height"));
+		return Size2(GLOBAL_GET_CACHED(real_t, "display/window/size/viewport_width"), GLOBAL_GET_CACHED(real_t, "display/window/size/viewport_height"));
 	}
 	return get_viewport_rect().size;
 }

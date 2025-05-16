@@ -35,11 +35,14 @@
 #include "core/os/keyboard.h"
 #include "scene/gui/box_container.h"
 #include "scene/gui/check_box.h"
+#include "scene/gui/flow_container.h"
 #include "scene/gui/grid_container.h"
+#include "scene/gui/item_list.h"
 #include "scene/gui/label.h"
 #include "scene/gui/line_edit.h"
+#include "scene/gui/menu_button.h"
 #include "scene/gui/option_button.h"
-#include "scene/gui/tree.h"
+#include "scene/gui/separator.h"
 #include "scene/theme/theme_db.h"
 
 void FileDialog::popup_file_dialog() {
@@ -266,6 +269,7 @@ void FileDialog::_notification(int p_what) {
 			_setup_button(show_hidden, theme_cache.toggle_hidden);
 			_setup_button(make_dir_button, theme_cache.create_folder);
 			_setup_button(show_filename_filter_button, theme_cache.toggle_filename_filter);
+			_setup_button(file_sort_button, theme_cache.sort);
 			invalidate();
 		} break;
 
@@ -340,19 +344,15 @@ void FileDialog::shortcut_input(const Ref<InputEvent> &p_event) {
 }
 
 void FileDialog::set_enable_multiple_selection(bool p_enable) {
-	tree->set_select_mode(p_enable ? Tree::SELECT_MULTI : Tree::SELECT_SINGLE);
+	file_list->set_select_mode(p_enable ? ItemList::SELECT_MULTI : ItemList::SELECT_SINGLE);
 }
 
 Vector<String> FileDialog::get_selected_files() const {
+	const String current_dir = dir_access->get_current_dir();
 	Vector<String> list;
-
-	TreeItem *item = tree->get_root();
-	item = tree->get_next_selected(item);
-	while (item) {
-		list.push_back(dir_access->get_current_dir().path_join(item->get_text(0)));
-		item = tree->get_next_selected(item);
+	for (int idx : file_list->get_selected_items()) {
+		list.push_back(current_dir.path_join(file_list->get_item_text(idx)));
 	}
-
 	return list;
 }
 
@@ -410,7 +410,7 @@ void FileDialog::_post_popup() {
 	if (mode == FILE_MODE_SAVE_FILE) {
 		filename_edit->grab_focus();
 	} else {
-		tree->grab_focus();
+		file_list->grab_focus();
 	}
 
 	set_process_shortcut_input(true);
@@ -441,20 +441,11 @@ void FileDialog::_push_history() {
 
 void FileDialog::_action_pressed() {
 	if (mode == FILE_MODE_OPEN_FILES) {
-		TreeItem *ti = tree->get_next_selected(nullptr);
-		String fbase = dir_access->get_current_dir();
-
-		Vector<String> files;
-		while (ti) {
-			files.push_back(fbase.path_join(ti->get_text(0)));
-			ti = tree->get_next_selected(ti);
-		}
-
-		if (files.size()) {
+		const Vector<String> files = get_selected_files();
+		if (!files.is_empty()) {
 			emit_signal(SNAME("files_selected"), files);
 			hide();
 		}
-
 		return;
 	}
 
@@ -468,9 +459,9 @@ void FileDialog::_action_pressed() {
 		String path = dir_access->get_current_dir();
 
 		path = path.replace_char('\\', '/');
-		TreeItem *item = tree->get_selected();
-		if (item) {
-			Dictionary d = item->get_metadata(0);
+		int selected = _get_selected_file_idx();
+		if (selected > -1) {
+			Dictionary d = file_list->get_item_metadata(selected);
 			if (d["dir"] && d["name"] != "..") {
 				path = path.path_join(d["name"]);
 			}
@@ -554,24 +545,19 @@ bool FileDialog::_is_open_should_be_disabled() {
 		return false;
 	}
 
-	TreeItem *ti = tree->get_next_selected(tree->get_root());
-	while (ti) {
-		TreeItem *prev_ti = ti;
-		ti = tree->get_next_selected(tree->get_root());
-		if (ti == prev_ti) {
-			break;
-		}
-	}
-	// We have something that we can't select?
-	if (!ti) {
+	Vector<int> items = file_list->get_selected_items();
+	if (items.is_empty()) {
 		return mode != FILE_MODE_OPEN_DIR; // In "Open folder" mode, having nothing selected picks the current folder.
 	}
 
-	Dictionary d = ti->get_metadata(0);
+	for (const int idx : items) {
+		Dictionary d = file_list->get_item_metadata(idx);
 
-	// Opening a file, but selected a folder? Forbidden.
-	return ((mode == FILE_MODE_OPEN_FILE || mode == FILE_MODE_OPEN_FILES) && d["dir"]) || // Flipped case, also forbidden.
-			(mode == FILE_MODE_OPEN_DIR && !d["dir"]);
+		if (((mode == FILE_MODE_OPEN_FILE || mode == FILE_MODE_OPEN_FILES) && d["dir"]) || (mode == FILE_MODE_OPEN_DIR && !d["dir"])) {
+			return true;
+		}
+	}
+	return false;
 }
 
 void FileDialog::_go_up() {
@@ -605,65 +591,63 @@ void FileDialog::_go_forward() {
 
 void FileDialog::deselect_all() {
 	// Clear currently selected items in file manager.
-	tree->deselect_all();
+	file_list->deselect_all();
 
 	// And change get_ok title.
-	if (!tree->is_anything_selected()) {
+	get_ok_button()->set_disabled(_is_open_should_be_disabled());
+
+	switch (mode) {
+		case FILE_MODE_OPEN_FILE:
+		case FILE_MODE_OPEN_FILES:
+			set_default_ok_text(ETR("Open"));
+			break;
+		case FILE_MODE_OPEN_DIR:
+			set_default_ok_text(ETR("Select Current Folder"));
+			break;
+		case FILE_MODE_OPEN_ANY:
+			set_default_ok_text(ETR("Open"));
+			break;
+		case FILE_MODE_SAVE_FILE:
+			set_default_ok_text(ETR("Save"));
+			break;
+	}
+}
+
+int FileDialog::_get_selected_file_idx() {
+	const PackedInt32Array selected = file_list->get_selected_items();
+	return selected.is_empty() ? -1 : selected[0];
+}
+
+void FileDialog::_file_list_multi_selected(int p_item, bool p_selected) {
+	if (p_selected) {
+		_file_list_selected(p_item);
+	} else {
 		get_ok_button()->set_disabled(_is_open_should_be_disabled());
-
-		switch (mode) {
-			case FILE_MODE_OPEN_FILE:
-			case FILE_MODE_OPEN_FILES:
-				set_internal_ok_text(ETR("Open"));
-				break;
-			case FILE_MODE_OPEN_DIR:
-				set_internal_ok_text(ETR("Select Current Folder"));
-				break;
-			case FILE_MODE_OPEN_ANY:
-				set_ok_button_text(ETR("Open"));
-				break;
-			case FILE_MODE_SAVE_FILE:
-				set_ok_button_text(ETR("Save"));
-				break;
-		}
 	}
 }
 
-void FileDialog::_tree_multi_selected(Object *p_object, int p_cell, bool p_selected) {
-	_tree_selected();
-}
-
-void FileDialog::_tree_selected() {
-	TreeItem *ti = tree->get_selected();
-	if (!ti) {
-		return;
-	}
-	Dictionary d = ti->get_metadata(0);
+void FileDialog::_file_list_selected(int p_item) {
+	Dictionary d = file_list->get_item_metadata(p_item);
 
 	if (!d["dir"]) {
 		filename_edit->set_text(d["name"]);
 		if (mode == FILE_MODE_SAVE_FILE) {
-			set_internal_ok_text(ETR("Save"));
+			set_default_ok_text(ETR("Save"));
 		} else {
-			set_internal_ok_text(ETR("Open"));
+			set_default_ok_text(ETR("Open"));
 		}
 	} else if (mode == FILE_MODE_OPEN_DIR || mode == FILE_MODE_OPEN_ANY || !dir_access->file_exists(filename_edit->get_text())) {
 		filename_edit->set_text("");
 		if (mode == FILE_MODE_OPEN_DIR || mode == FILE_MODE_OPEN_ANY) {
-			set_internal_ok_text(ETR("Select This Folder"));
+			set_default_ok_text(ETR("Select This Folder"));
 		}
 	}
 
 	get_ok_button()->set_disabled(_is_open_should_be_disabled());
 }
 
-void FileDialog::_tree_item_activated() {
-	TreeItem *ti = tree->get_selected();
-	if (!ti) {
-		return;
-	}
-
-	Dictionary d = ti->get_metadata(0);
+void FileDialog::_file_list_item_activated(int p_item) {
+	Dictionary d = file_list->get_item_metadata(p_item);
 
 	if (d["dir"]) {
 		_change_dir(d["name"]);
@@ -698,10 +682,10 @@ void FileDialog::update_file_name() {
 void FileDialog::_item_menu_id_pressed(int p_option) {
 	switch (p_option) {
 		case ITEM_MENU_SHOW_IN_EXPLORER: {
-			TreeItem *ti = tree->get_selected();
 			String path;
-			if (ti) {
-				Dictionary d = ti->get_metadata(0);
+			int selected = _get_selected_file_idx();
+			if (selected > -1) {
+				Dictionary d = file_list->get_item_metadata(selected);
 				path = ProjectSettings::get_singleton()->globalize_path(dir_access->get_current_dir().path_join(d["name"]));
 			} else {
 				path = ProjectSettings::get_singleton()->globalize_path(dir_access->get_current_dir());
@@ -711,11 +695,11 @@ void FileDialog::_item_menu_id_pressed(int p_option) {
 		} break;
 
 		case ITEM_MENU_SHOW_BUNDLE_CONTENT: {
-			TreeItem *ti = tree->get_selected();
-			if (!ti) {
+			int selected = _get_selected_file_idx();
+			if (selected == -1) {
 				return;
 			}
-			Dictionary d = ti->get_metadata(0);
+			Dictionary d = file_list->get_item_metadata(selected);
 			_change_dir(d["name"]);
 			if (mode == FILE_MODE_OPEN_FILE || mode == FILE_MODE_OPEN_FILES || mode == FILE_MODE_OPEN_DIR || mode == FILE_MODE_OPEN_ANY) {
 				filename_edit->set_text("");
@@ -732,42 +716,38 @@ void FileDialog::_empty_clicked(const Vector2 &p_pos, MouseButton p_button) {
 		// Opening the system file manager is not supported on the Android and web editors.
 		item_menu->add_item(ETR("Open in File Manager"), ITEM_MENU_SHOW_IN_EXPLORER);
 
-		item_menu->set_position(tree->get_screen_position() + p_pos);
+		item_menu->set_position(file_list->get_screen_position() + p_pos);
 		item_menu->reset_size();
 		item_menu->popup();
 #endif
+	} else if (p_button == MouseButton::LEFT) {
+		deselect_all();
 	}
 }
 
-void FileDialog::_rmb_select(const Vector2 &p_pos, MouseButton p_button) {
+void FileDialog::_item_clicked(int p_item, const Vector2 &p_pos, MouseButton p_button) {
 	if (p_button == MouseButton::RIGHT) {
 		item_menu->clear();
 #if !defined(ANDROID_ENABLED) && !defined(WEB_ENABLED)
 		// Opening the system file manager is not supported on the Android and web editors.
-		TreeItem *ti = tree->get_selected();
-		if (!ti) {
-			return;
-		}
-		Dictionary d = ti->get_metadata(0);
+		Dictionary d = file_list->get_item_metadata(p_item);
 		if (d["bundle"]) {
 			item_menu->add_item(ETR("Show Package Contents"), ITEM_MENU_SHOW_BUNDLE_CONTENT);
 		}
 		item_menu->add_item(ETR("Open in File Manager"), ITEM_MENU_SHOW_IN_EXPLORER);
 
-		item_menu->set_position(tree->get_screen_position() + p_pos);
+		item_menu->set_position(file_list->get_screen_position() + p_pos);
 		item_menu->reset_size();
 		item_menu->popup();
 #endif
-	} else {
-		_tree_selected();
 	}
 }
 
 void FileDialog::update_file_list() {
-	tree->clear();
+	file_list->clear();
 
 	// Scroll back to the top after opening a directory
-	tree->get_vscroll_bar()->set_value(0);
+	file_list->get_v_scroll_bar()->set_value(0);
 
 	dir_access->list_dir_begin();
 
@@ -778,9 +758,8 @@ void FileDialog::update_file_list() {
 		message->show();
 	}
 
-	TreeItem *root = tree->create_item();
-	List<String> files;
-	List<String> dirs;
+	LocalVector<String> files;
+	LocalVector<String> dirs;
 
 	bool is_hidden;
 	String item = dir_access->get_next();
@@ -803,17 +782,14 @@ void FileDialog::update_file_list() {
 		item = dir_access->get_next();
 	}
 
-	dirs.sort_custom<FileNoCaseComparator>();
-	files.sort_custom<FileNoCaseComparator>();
-
 	String filename_filter_lower = file_name_filter.to_lower();
 
 	List<String> patterns;
-	// build filter
+	// Build filter.
 	if (filter->get_selected() == filter->get_item_count() - 1) {
-		// match all
+		// Match all.
 	} else if (filters.size() > 1 && filter->get_selected() == 0) {
-		// match all filters
+		// Match all filters.
 		for (int i = 0; i < filters.size(); i++) {
 			String f = filters[i].get_slicec(';', 0);
 			for (int j = 0; j < f.get_slice_count(","); j++) {
@@ -834,9 +810,11 @@ void FileDialog::update_file_list() {
 		}
 	}
 
-	while (!dirs.is_empty()) {
-		const String &dir_name = dirs.front()->get();
+	LocalVector<DirInfo> filtered_dirs;
+	filtered_dirs.reserve(dirs.size());
+	const String base_dir = dir_access->get_current_dir();
 
+	for (const String &dir_name : dirs) {
 		bool bundle = dir_access->is_bundle(dir_name);
 		bool found = true;
 		if (bundle) {
@@ -851,72 +829,112 @@ void FileDialog::update_file_list() {
 		}
 
 		if (found && (filename_filter_lower.is_empty() || dir_name.to_lower().contains(filename_filter_lower))) {
-			TreeItem *ti = tree->create_item(root);
-
-			ti->set_text(0, dir_name);
-			ti->set_icon(0, theme_cache.folder);
-			ti->set_icon_modulate(0, theme_cache.folder_icon_color);
-
-			Dictionary d;
-			d["name"] = dir_name;
-			d["dir"] = !bundle;
-			d["bundle"] = bundle;
-
-			ti->set_metadata(0, d);
+			DirInfo di;
+			di.name = dir_name;
+			di.bundle = bundle;
+			if (file_sort == FileSortOption::MODIFIED_TIME || file_sort == FileSortOption::MODIFIED_TIME_REVERSE) {
+				di.modified_time = FileAccess::get_modified_time(base_dir.path_join(dir_name));
+			}
+			filtered_dirs.push_back(di);
 		}
-
-		dirs.pop_front();
 	}
 
-	String base_dir = dir_access->get_current_dir();
+	if (file_sort == FileSortOption::MODIFIED_TIME || file_sort == FileSortOption::MODIFIED_TIME_REVERSE) {
+		filtered_dirs.sort_custom<DirInfo::TimeComparator>();
+	} else {
+		filtered_dirs.sort_custom<DirInfo::NameComparator>();
+	}
 
-	while (!files.is_empty()) {
+	if (file_sort == FileSortOption::NAME_REVERSE || file_sort == FileSortOption::MODIFIED_TIME_REVERSE) {
+		filtered_dirs.reverse();
+	}
+
+	for (const DirInfo &info : filtered_dirs) {
+		file_list->add_item(info.name, theme_cache.folder);
+		file_list->set_item_icon_modulate(-1, theme_cache.folder_icon_color);
+
+		Dictionary d;
+		d["name"] = info.name;
+		d["dir"] = !info.bundle;
+		d["bundle"] = info.bundle;
+		file_list->set_item_metadata(-1, d);
+	}
+
+	LocalVector<FileInfo> filtered_files;
+	filtered_files.reserve(files.size());
+
+	for (const String &filename : files) {
 		bool match = patterns.is_empty();
 		String match_str;
 
 		for (const String &E : patterns) {
-			if (files.front()->get().matchn(E)) {
+			if (filename.matchn(E)) {
 				match_str = E;
 				match = true;
 				break;
 			}
 		}
 
-		if (match && (filename_filter_lower.is_empty() || files.front()->get().to_lower().contains(filename_filter_lower))) {
-			TreeItem *ti = tree->create_item(root);
-			ti->set_text(0, files.front()->get());
+		if (match && (filename_filter_lower.is_empty() || filename.to_lower().contains(filename_filter_lower))) {
+			FileInfo fi;
+			fi.name = filename;
+			fi.match_string = match_str;
 
-			if (get_icon_func) {
-				Ref<Texture2D> icon = get_icon_func(base_dir.path_join(files.front()->get()));
-				ti->set_icon(0, icon);
-			} else {
-				ti->set_icon(0, theme_cache.file);
+			// Only assign sorting fields when needed.
+			if (file_sort == FileSortOption::TYPE || file_sort == FileSortOption::TYPE_REVERSE) {
+				fi.type_sort = filename.get_extension() + filename.get_basename();
+			} else if (file_sort == FileSortOption::MODIFIED_TIME || file_sort == FileSortOption::MODIFIED_TIME_REVERSE) {
+				fi.modified_time = FileAccess::get_modified_time(base_dir.path_join(filename));
 			}
-			ti->set_icon_modulate(0, theme_cache.file_icon_color);
-
-			if (mode == FILE_MODE_OPEN_DIR) {
-				ti->set_custom_color(0, theme_cache.file_disabled_color);
-				ti->set_selectable(0, false);
-			}
-			Dictionary d;
-			d["name"] = files.front()->get();
-			d["dir"] = false;
-			d["bundle"] = false;
-			ti->set_metadata(0, d);
-
-			if (filename_edit->get_text() == files.front()->get() || match_str == files.front()->get()) {
-				ti->select(0);
-			}
+			filtered_files.push_back(fi);
 		}
+	}
 
-		files.pop_front();
+	switch (file_sort) {
+		case FileSortOption::NAME:
+		case FileSortOption::NAME_REVERSE:
+			filtered_files.sort_custom<FileInfo::NameComparator>();
+			break;
+		case FileSortOption::TYPE:
+		case FileSortOption::TYPE_REVERSE:
+			filtered_files.sort_custom<FileInfo::TypeComparator>();
+			break;
+		case FileSortOption::MODIFIED_TIME:
+		case FileSortOption::MODIFIED_TIME_REVERSE:
+			filtered_files.sort_custom<FileInfo::TimeComparator>();
+			break;
+		default:
+			ERR_PRINT(vformat("Invalid FileDialog sort option: %d", int(file_sort)));
+	}
+
+	if (file_sort == FileSortOption::NAME_REVERSE || file_sort == FileSortOption::TYPE_REVERSE || file_sort == FileSortOption::MODIFIED_TIME_REVERSE) {
+		filtered_files.reverse();
+	}
+
+	for (const FileInfo &info : filtered_files) {
+		const Ref<Texture2D> icon = get_icon_func ? get_icon_func(base_dir.path_join(info.name)) : theme_cache.file;
+		file_list->add_item(info.name, icon);
+		file_list->set_item_icon_modulate(-1, theme_cache.file_icon_color);
+
+		if (mode == FILE_MODE_OPEN_DIR) {
+			file_list->set_item_disabled(-1, true);
+		}
+		Dictionary d;
+		d["name"] = info.name;
+		d["dir"] = false;
+		d["bundle"] = false;
+		file_list->set_item_metadata(-1, d);
+
+		if (filename_edit->get_text() == info.name || info.match_string == info.name) {
+			file_list->select(file_list->get_item_count() - 1);
+		}
 	}
 
 	if (mode != FILE_MODE_SAVE_FILE && mode != FILE_MODE_OPEN_DIR) {
 		// Select the first file from list if nothing is selected.
-		if (tree->get_root() && tree->get_root()->get_first_child() && tree->get_selected() == nullptr) {
-			tree->get_root()->get_first_child()->select(0);
-			_tree_selected();
+		int selected = _get_selected_file_idx();
+		if (selected == -1) {
+			_file_list_select_first();
 		}
 	}
 }
@@ -929,20 +947,20 @@ void FileDialog::_filter_selected(int) {
 void FileDialog::_filename_filter_changed() {
 	update_filename_filter();
 	update_file_list();
-	callable_mp(this, &FileDialog::_tree_select_first).call_deferred();
+	callable_mp(this, &FileDialog::_file_list_select_first).call_deferred();
 }
 
-void FileDialog::_tree_select_first() {
-	if (tree->get_root() && tree->get_root()->get_first_child()) {
-		tree->get_root()->get_first_child()->select(0);
-		_tree_selected();
+void FileDialog::_file_list_select_first() {
+	if (file_list->get_item_count() > 0) {
+		file_list->select(0);
+		_file_list_selected(0);
 	}
 }
 
 void FileDialog::_filename_filter_selected() {
-	TreeItem *item = tree->get_selected();
-	if (item) {
-		filename_edit->set_text(item->get_text(0));
+	int selected = _get_selected_file_idx();
+	if (selected > -1) {
+		filename_edit->set_text(file_list->get_item_text(selected));
 		filename_edit->emit_signal(SceneStringName(text_submitted), filename_edit->get_text());
 	}
 }
@@ -1180,35 +1198,35 @@ void FileDialog::set_file_mode(FileMode p_mode) {
 	mode = p_mode;
 	switch (mode) {
 		case FILE_MODE_OPEN_FILE:
-			set_internal_ok_text(ETR("Open"));
+			set_default_ok_text(ETR("Open"));
 			if (mode_overrides_title) {
 				set_title(ETR("Open a File"));
 			}
 			make_dir_button->hide();
 			break;
 		case FILE_MODE_OPEN_FILES:
-			set_internal_ok_text(ETR("Open"));
+			set_default_ok_text(ETR("Open"));
 			if (mode_overrides_title) {
 				set_title(ETR("Open File(s)"));
 			}
 			make_dir_button->hide();
 			break;
 		case FILE_MODE_OPEN_DIR:
-			set_internal_ok_text(ETR("Select Current Folder"));
+			set_default_ok_text(ETR("Select Current Folder"));
 			if (mode_overrides_title) {
 				set_title(ETR("Open a Directory"));
 			}
 			make_dir_button->show();
 			break;
 		case FILE_MODE_OPEN_ANY:
-			set_internal_ok_text(ETR("Open"));
+			set_default_ok_text(ETR("Open"));
 			if (mode_overrides_title) {
 				set_title(ETR("Open a File or Directory"));
 			}
 			make_dir_button->show();
 			break;
 		case FILE_MODE_SAVE_FILE:
-			set_internal_ok_text(ETR("Save"));
+			set_default_ok_text(ETR("Save"));
 			if (mode_overrides_title) {
 				set_title(ETR("Save a File"));
 			}
@@ -1217,9 +1235,9 @@ void FileDialog::set_file_mode(FileMode p_mode) {
 	}
 
 	if (mode == FILE_MODE_OPEN_FILES) {
-		tree->set_select_mode(Tree::SELECT_MULTI);
+		file_list->set_select_mode(ItemList::SELECT_MULTI);
 	} else {
-		tree->set_select_mode(Tree::SELECT_SINGLE);
+		file_list->set_select_mode(ItemList::SELECT_SINGLE);
 	}
 
 	get_ok_button()->set_disabled(_is_open_should_be_disabled());
@@ -1356,6 +1374,14 @@ void FileDialog::_update_drives(bool p_select) {
 	}
 }
 
+void FileDialog::_sort_option_selected(int p_option) {
+	for (int i = 0; i < int(FileSortOption::MAX); i++) {
+		file_sort_button->get_popup()->set_item_checked(i, (i == p_option));
+	}
+	file_sort = FileSortOption(p_option);
+	invalidate();
+}
+
 TypedArray<Dictionary> FileDialog::_get_options() const {
 	TypedArray<Dictionary> out;
 	for (const FileDialog::Option &opt : options) {
@@ -1386,32 +1412,39 @@ void FileDialog::_update_option_controls() {
 	}
 	options_dirty = false;
 
-	while (grid_options->get_child_count() > 0) {
-		Node *child = grid_options->get_child(0);
-		grid_options->remove_child(child);
+	while (flow_checkbox_options->get_child_count() > 0) {
+		Node *child = flow_checkbox_options->get_child(0);
+		flow_checkbox_options->remove_child(child);
+		child->queue_free();
+	}
+	while (grid_select_options->get_child_count() > 0) {
+		Node *child = grid_select_options->get_child(0);
+		grid_select_options->remove_child(child);
 		child->queue_free();
 	}
 	selected_options.clear();
 
 	for (const FileDialog::Option &opt : options) {
-		Label *lbl = memnew(Label);
-		lbl->set_text(opt.name);
-		grid_options->add_child(lbl);
 		if (opt.values.is_empty()) {
 			CheckBox *cb = memnew(CheckBox);
+			cb->set_text(opt.name);
 			cb->set_accessibility_name(opt.name);
 			cb->set_pressed(opt.default_idx);
-			grid_options->add_child(cb);
+			flow_checkbox_options->add_child(cb);
 			cb->connect(SceneStringName(toggled), callable_mp(this, &FileDialog::_option_changed_checkbox_toggled).bind(opt.name));
 			selected_options[opt.name] = (bool)opt.default_idx;
 		} else {
+			Label *lbl = memnew(Label);
+			lbl->set_text(opt.name);
+			grid_select_options->add_child(lbl);
+
 			OptionButton *ob = memnew(OptionButton);
 			for (const String &val : opt.values) {
 				ob->add_item(val);
 			}
 			ob->set_accessibility_name(opt.name);
 			ob->select(opt.default_idx);
-			grid_options->add_child(ob);
+			grid_select_options->add_child(ob);
 			ob->connect(SceneStringName(item_selected), callable_mp(this, &FileDialog::_option_changed_item_selected).bind(opt.name));
 			selected_options[opt.name] = opt.default_idx;
 		}
@@ -1598,6 +1631,7 @@ void FileDialog::_bind_methods() {
 	BIND_THEME_ITEM(Theme::DATA_TYPE_ICON, FileDialog, toggle_filename_filter);
 	BIND_THEME_ITEM(Theme::DATA_TYPE_ICON, FileDialog, file);
 	BIND_THEME_ITEM(Theme::DATA_TYPE_ICON, FileDialog, create_folder);
+	BIND_THEME_ITEM(Theme::DATA_TYPE_ICON, FileDialog, sort);
 
 	BIND_THEME_ITEM(Theme::DATA_TYPE_COLOR, FileDialog, folder_icon_color);
 	BIND_THEME_ITEM(Theme::DATA_TYPE_COLOR, FileDialog, file_icon_color);
@@ -1635,7 +1669,7 @@ void FileDialog::set_show_filename_filter(bool p_show) {
 		filename_filter->grab_focus();
 	} else {
 		if (filename_filter->has_focus()) {
-			tree->call_deferred("grab_focus");
+			callable_mp((Control *)file_list, &Control::grab_focus).call_deferred();
 		}
 	}
 	show_filename_filter = p_show;
@@ -1679,7 +1713,7 @@ FileDialog::FileDialog() {
 	set_title(ETR("Save a File"));
 	set_hide_on_ok(false);
 	set_size(Size2(640, 360));
-	set_internal_ok_text(ETR("Save")); // Default mode text.
+	set_default_ok_text(ETR("Save")); // Default mode text.
 
 	show_hidden_files = default_show_hidden_files;
 	dir_access = DirAccess::create(DirAccess::ACCESS_RESOURCES);
@@ -1741,23 +1775,7 @@ FileDialog::FileDialog() {
 	top_toolbar->add_child(refresh_button);
 	refresh_button->connect(SceneStringName(pressed), callable_mp(this, &FileDialog::update_file_list));
 
-	show_hidden = memnew(Button);
-	show_hidden->set_theme_type_variation(SceneStringName(FlatButton));
-	show_hidden->set_toggle_mode(true);
-	show_hidden->set_pressed(is_showing_hidden_files());
-	show_hidden->set_accessibility_name(ETR("Show Hidden Files"));
-	show_hidden->set_tooltip_text(ETR("Toggle the visibility of hidden files."));
-	top_toolbar->add_child(show_hidden);
-	show_hidden->connect(SceneStringName(toggled), callable_mp(this, &FileDialog::set_show_hidden_files));
-
-	show_filename_filter_button = memnew(Button);
-	show_filename_filter_button->set_theme_type_variation(SceneStringName(FlatButton));
-	show_filename_filter_button->set_toggle_mode(true);
-	show_filename_filter_button->set_pressed(false);
-	show_filename_filter_button->set_accessibility_name(ETR("Filter File Names"));
-	show_filename_filter_button->set_tooltip_text(ETR("Toggle the visibility of the filter for file names."));
-	top_toolbar->add_child(show_filename_filter_button);
-	show_filename_filter_button->connect(SceneStringName(toggled), callable_mp(this, &FileDialog::set_show_filename_filter));
+	top_toolbar->add_child(memnew(VSeparator));
 
 	make_dir_button = memnew(Button);
 	make_dir_button->set_theme_type_variation(SceneStringName(FlatButton));
@@ -1766,25 +1784,64 @@ FileDialog::FileDialog() {
 	top_toolbar->add_child(make_dir_button);
 	make_dir_button->connect(SceneStringName(pressed), callable_mp(this, &FileDialog::_make_dir));
 
+	HBoxContainer *lower_toolbar = memnew(HBoxContainer);
+	main_vbox->add_child(lower_toolbar);
+
 	{
 		Label *label = memnew(Label(ETR("Directories & Files:")));
+		label->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 		label->set_theme_type_variation("HeaderSmall");
-		main_vbox->add_child(label);
+		lower_toolbar->add_child(label);
 	}
 
-	tree = memnew(Tree);
-	tree->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
-	tree->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	tree->set_accessibility_name(ETR("Directories and Files"));
-	tree->set_hide_root(true);
-	tree->set_allow_rmb_select(true);
-	main_vbox->add_child(tree);
-	tree->connect("multi_selected", callable_mp(this, &FileDialog::_tree_multi_selected), CONNECT_DEFERRED);
-	tree->connect("cell_selected", callable_mp(this, &FileDialog::_tree_selected), CONNECT_DEFERRED);
-	tree->connect("item_activated", callable_mp(this, &FileDialog::_tree_item_activated));
-	tree->connect("nothing_selected", callable_mp(this, &FileDialog::deselect_all));
-	tree->connect("item_mouse_selected", callable_mp(this, &FileDialog::_rmb_select));
-	tree->connect("empty_clicked", callable_mp(this, &FileDialog::_empty_clicked));
+	show_hidden = memnew(Button);
+	show_hidden->set_theme_type_variation(SceneStringName(FlatButton));
+	show_hidden->set_toggle_mode(true);
+	show_hidden->set_pressed(is_showing_hidden_files());
+	show_hidden->set_accessibility_name(ETR("Show Hidden Files"));
+	show_hidden->set_tooltip_text(ETR("Toggle the visibility of hidden files."));
+	lower_toolbar->add_child(show_hidden);
+	show_hidden->connect(SceneStringName(toggled), callable_mp(this, &FileDialog::set_show_hidden_files));
+
+	lower_toolbar->add_child(memnew(VSeparator));
+
+	show_filename_filter_button = memnew(Button);
+	show_filename_filter_button->set_theme_type_variation(SceneStringName(FlatButton));
+	show_filename_filter_button->set_toggle_mode(true);
+	show_filename_filter_button->set_pressed(false);
+	show_filename_filter_button->set_accessibility_name(ETR("Filter File Names"));
+	show_filename_filter_button->set_tooltip_text(ETR("Toggle the visibility of the filter for file names."));
+	lower_toolbar->add_child(show_filename_filter_button);
+	show_filename_filter_button->connect(SceneStringName(toggled), callable_mp(this, &FileDialog::set_show_filename_filter));
+
+	file_sort_button = memnew(MenuButton);
+	file_sort_button->set_flat(false);
+	file_sort_button->set_theme_type_variation("FlatMenuButton");
+	file_sort_button->set_tooltip_text(ETR("Sort files"));
+	file_sort_button->set_accessibility_name(ETR("Sort Files"));
+
+	PopupMenu *sort_menu = file_sort_button->get_popup();
+	sort_menu->add_radio_check_item(ETR("Sort by Name (Ascending)"), int(FileSortOption::NAME));
+	sort_menu->add_radio_check_item(ETR("Sort by Name (Descending)"), int(FileSortOption::NAME_REVERSE));
+	sort_menu->add_radio_check_item(ETR("Sort by Type (Ascending)"), int(FileSortOption::TYPE));
+	sort_menu->add_radio_check_item(ETR("Sort by Type (Descending)"), int(FileSortOption::TYPE_REVERSE));
+	sort_menu->add_radio_check_item(ETR("Sort by Modified Time (Newest First)"), int(FileSortOption::MODIFIED_TIME));
+	sort_menu->add_radio_check_item(ETR("Sort by Modified Time (Oldest First)"), int(FileSortOption::MODIFIED_TIME_REVERSE));
+	sort_menu->set_item_checked(0, true);
+	lower_toolbar->add_child(file_sort_button);
+	sort_menu->connect(SceneStringName(id_pressed), callable_mp(this, &FileDialog::_sort_option_selected));
+
+	file_list = memnew(ItemList);
+	file_list->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
+	file_list->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	file_list->set_accessibility_name(ETR("Directories and Files"));
+	file_list->set_allow_rmb_select(true);
+	main_vbox->add_child(file_list);
+	file_list->connect("multi_selected", callable_mp(this, &FileDialog::_file_list_multi_selected));
+	file_list->connect("item_selected", callable_mp(this, &FileDialog::_file_list_selected));
+	file_list->connect("item_activated", callable_mp(this, &FileDialog::_file_list_item_activated));
+	file_list->connect("item_clicked", callable_mp(this, &FileDialog::_item_clicked));
+	file_list->connect("empty_clicked", callable_mp(this, &FileDialog::_empty_clicked));
 
 	message = memnew(Label);
 	message->set_focus_mode(Control::FOCUS_ACCESSIBILITY);
@@ -1792,7 +1849,7 @@ FileDialog::FileDialog() {
 	message->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
 	message->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	message->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
-	tree->add_child(message);
+	file_list->add_child(message);
 
 	filename_filter_box = memnew(HBoxContainer);
 	filename_filter_box->set_visible(false);
@@ -1836,10 +1893,15 @@ FileDialog::FileDialog() {
 	file_box->add_child(filter);
 	filter->connect(SceneStringName(item_selected), callable_mp(this, &FileDialog::_filter_selected));
 
-	grid_options = memnew(GridContainer);
-	grid_options->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
-	grid_options->set_columns(2);
-	main_vbox->add_child(grid_options);
+	flow_checkbox_options = memnew(HFlowContainer);
+	flow_checkbox_options->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	flow_checkbox_options->set_alignment(FlowContainer::ALIGNMENT_CENTER);
+	main_vbox->add_child(flow_checkbox_options);
+
+	grid_select_options = memnew(GridContainer);
+	grid_select_options->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
+	grid_select_options->set_columns(2);
+	main_vbox->add_child(grid_select_options);
 
 	confirm_save = memnew(ConfirmationDialog);
 	add_child(confirm_save, false, INTERNAL_MODE_FRONT);

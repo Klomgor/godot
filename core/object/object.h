@@ -94,6 +94,7 @@ enum PropertyHint {
 	PROPERTY_HINT_ONESHOT, ///< the property will be changed by self after setting, such as AudioStreamPlayer.playing, Particles.emitting.
 	PROPERTY_HINT_NO_NODEPATH, /// < this property will not contain a NodePath, regardless of type (Array, Dictionary, List, etc.). Needed for SceneTreeDock.
 	PROPERTY_HINT_GROUP_ENABLE, ///< used to make the property's group checkable. Only use for boolean types.
+	PROPERTY_HINT_INPUT_NAME,
 	PROPERTY_HINT_MAX,
 };
 
@@ -425,7 +426,7 @@ public:                                                                         
 	static const StringName &get_class_static() {                                                                                           \
 		static StringName _class_name_static;                                                                                               \
 		if (unlikely(!_class_name_static)) {                                                                                                \
-			StringName::assign_static_unique_class_name(&_class_name_static, #m_class);                                                     \
+			assign_class_name_static(#m_class, _class_name_static);                                                                         \
 		}                                                                                                                                   \
 		return _class_name_static;                                                                                                          \
 	}                                                                                                                                       \
@@ -811,10 +812,12 @@ public:
 	};
 
 	/* TYPE API */
+	static void assign_class_name_static(const Span<char> &p_name, StringName &r_target);
+
 	static const StringName &get_class_static() {
 		static StringName _class_name_static;
 		if (unlikely(!_class_name_static)) {
-			StringName::assign_static_unique_class_name(&_class_name_static, "Object");
+			assign_class_name_static("Object", _class_name_static);
 		}
 		return _class_name_static;
 	}
