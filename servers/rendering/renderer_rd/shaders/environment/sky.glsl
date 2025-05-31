@@ -4,12 +4,6 @@
 
 #VERSION_DEFINES
 
-#define MAX_VIEWS 2
-
-#if defined(USE_MULTIVIEW) && defined(has_VK_KHR_multiview)
-#extension GL_EXT_multiview : enable
-#endif
-
 layout(location = 0) out vec2 uv_interp;
 
 layout(push_constant, std430) uniform Params {
@@ -36,20 +30,11 @@ void main() {
 #VERSION_DEFINES
 
 #ifdef USE_MULTIVIEW
-#ifdef has_VK_KHR_multiview
 #extension GL_EXT_multiview : enable
 #define ViewIndex gl_ViewIndex
-#else // has_VK_KHR_multiview
-// !BAS! This needs to become an input once we implement our fallback!
-#define ViewIndex 0
-#endif // has_VK_KHR_multiview
-#else // USE_MULTIVIEW
-// Set to zero, not supported in non stereo
-#define ViewIndex 0
-#endif //USE_MULTIVIEW
+#endif
 
 #define M_PI 3.14159265359
-#define MAX_VIEWS 2
 
 layout(location = 0) in vec2 uv_interp;
 
@@ -193,7 +178,7 @@ float acos_approx(float p_x) {
 	float x = abs(p_x);
 	float res = -0.156583f * x + (M_PI / 2.0);
 	res *= sqrt(1.0f - x);
-	return (p_x >= 0) ? res : M_PI - res;
+	return (p_x >= 0.0) ? res : M_PI - res;
 }
 
 // Based on https://math.stackexchange.com/questions/1098487/atan2-faster-approximation

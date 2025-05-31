@@ -37,7 +37,7 @@
 #include "core/os/midi_driver.h"
 #include "core/version_generated.gen.h"
 
-#include <stdarg.h>
+#include <cstdarg>
 
 #ifdef MINGW_ENABLED
 #define MINGW_STDTHREAD_REDUNDANCY_WARNING
@@ -585,7 +585,7 @@ bool OS::has_feature(const String &p_feature) {
 	}
 #endif
 
-#if defined(IOS_SIMULATOR)
+#if defined(IOS_SIMULATOR) || defined(VISIONOS_SIMULATOR)
 	if (p_feature == "simulator") {
 		return true;
 	}

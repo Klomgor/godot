@@ -39,6 +39,7 @@
 #include "editor/multi_node_edit.h"
 #include "editor/plugins/canvas_item_editor_plugin.h"
 #include "editor/themes/editor_scale.h"
+#include "scene/2d/tile_map.h"
 #include "scene/2d/tile_map_layer.h"
 #include "scene/gui/split_container.h"
 
@@ -988,18 +989,23 @@ void TileMapLayerEditorTilesPlugin::forward_canvas_draw_over_viewport(Control *p
 
 							bool transpose = tile_data->get_transpose() ^ bool(E.value.alternative_tile & TileSetAtlasSource::TRANSFORM_TRANSPOSE);
 							if (transpose) {
-								dest_rect.position = (tile_set->map_to_local(E.key) - Vector2(dest_rect.size.y, dest_rect.size.x) / 2 - tile_offset);
+								dest_rect.position = (tile_set->map_to_local(E.key) - Vector2(dest_rect.size.y, dest_rect.size.x) / 2);
+								SWAP(tile_offset.x, tile_offset.y);
 							} else {
-								dest_rect.position = (tile_set->map_to_local(E.key) - dest_rect.size / 2 - tile_offset);
+								dest_rect.position = (tile_set->map_to_local(E.key) - dest_rect.size / 2);
 							}
 
 							if (tile_data->get_flip_h() ^ bool(E.value.alternative_tile & TileSetAtlasSource::TRANSFORM_FLIP_H)) {
 								dest_rect.size.x = -dest_rect.size.x;
+								tile_offset.x = -tile_offset.x;
 							}
 
 							if (tile_data->get_flip_v() ^ bool(E.value.alternative_tile & TileSetAtlasSource::TRANSFORM_FLIP_V)) {
 								dest_rect.size.y = -dest_rect.size.y;
+								tile_offset.y = -tile_offset.y;
 							}
+
+							dest_rect.position -= tile_offset;
 
 							// Get the tile modulation.
 							Color modulate = tile_data->get_modulate() * edited_layer->get_modulate_in_tree() * edited_layer->get_self_modulate();
@@ -1307,7 +1313,7 @@ void TileMapLayerEditorTilesPlugin::_stop_dragging() {
 	EditorUndoRedoManager *undo_redo = EditorUndoRedoManager::get_singleton();
 	switch (drag_type) {
 		case DRAG_TYPE_SELECT: {
-			undo_redo->create_action_for_history(TTR("Change selection"), EditorNode::get_editor_data().get_current_edited_scene_history_id());
+			undo_redo->create_action_for_history(TTR("Change selection"), EditorNode::get_editor_data().get_current_edited_scene_history_id(), UndoRedo::MERGE_DISABLE, false, false);
 			undo_redo->add_undo_method(this, "_set_tile_map_selection", _get_tile_map_selection());
 
 			if (!Input::get_singleton()->is_key_pressed(Key::SHIFT) && !Input::get_singleton()->is_key_pressed(Key::CMD_OR_CTRL)) {
@@ -4078,7 +4084,7 @@ Vector<Vector2i> TileMapLayerEditor::get_line(const TileMapLayer *p_tile_map_lay
 					if (sign.x == 0) {
 						current += Vector2(sign.y, 0);
 					} else {
-						current += Vector2(bool(current.y % 2) ^ (sign.x < 0) ? sign.x : 0, sign.y);
+						current += Vector2(bool(current.y % 2) != (sign.x < 0) ? sign.x : 0, sign.y);
 					}
 					err -= err_step.x;
 				} else {
@@ -4095,7 +4101,7 @@ Vector<Vector2i> TileMapLayerEditor::get_line(const TileMapLayer *p_tile_map_lay
 					if (sign.x == 0) {
 						current += Vector2(0, sign.y);
 					} else {
-						current += Vector2(bool(current.y % 2) ^ (sign.x < 0) ? sign.x : 0, sign.y);
+						current += Vector2(bool(current.y % 2) != (sign.x < 0) ? sign.x : 0, sign.y);
 					}
 					err -= err_step.y;
 				} else {

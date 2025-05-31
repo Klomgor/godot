@@ -454,8 +454,8 @@ private:
 	};
 
 	struct ItemRainbow : public ItemFX {
-		float saturation = 0.8f;
-		float value = 0.8f;
+		float saturation = 0.9f;
+		float value = 1.0f;
 		float frequency = 1.0f;
 		float speed = 1.0f;
 
@@ -849,6 +849,9 @@ public:
 	int get_content_height() const;
 	int get_content_width() const;
 
+	int get_line_height(int p_line) const;
+	int get_line_width(int p_line) const;
+
 	void scroll_to_selection();
 
 	VScrollBar *get_v_scroll_bar() { return vscroll; }
@@ -863,7 +866,6 @@ public:
 	float get_selection_line_offset() const;
 	String get_selected_text() const;
 	void select_all();
-	void selection_copy();
 
 	_FORCE_INLINE_ void set_selection_modifier(const Callable &p_modifier) {
 		selection_modifier = p_modifier;
