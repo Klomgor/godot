@@ -190,8 +190,7 @@ void ImportDock::_update_options(const String &p_path, const Ref<ConfigFile> &p_
 
 	HashMap<StringName, Variant> import_options;
 	if (p_config.is_valid() && p_config->has_section("params")) {
-		List<String> section_keys;
-		p_config->get_section_keys("params", &section_keys);
+		Vector<String> section_keys = p_config->get_section_keys("params");
 		for (const String &section_key : section_keys) {
 			import_options[section_key] = p_config->get_value("params", section_key);
 		}
@@ -258,8 +257,7 @@ void ImportDock::set_edit_multiple_paths(const Vector<String> &p_paths) {
 			continue;
 		}
 
-		List<String> keys;
-		config->get_section_keys("params", &keys);
+		Vector<String> keys = config->get_section_keys("params");
 
 		for (const String &E : keys) {
 			if (!value_frequency.has(E)) {
@@ -381,7 +379,7 @@ void ImportDock::_update_preset_menu() {
 	}
 	preset->show();
 
-	if (params->importer->get_preset_count() == 0) {
+	if (params->importer->get_preset_count() <= 0) {
 		preset->get_popup()->add_item(TTRC("Default"));
 	} else {
 		for (int i = 0; i < params->importer->get_preset_count(); i++) {

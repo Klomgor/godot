@@ -68,9 +68,11 @@ bool ColorPickerShape::can_handle(const Ref<InputEvent> &p_event, Vector2 &r_pos
 }
 
 void ColorPickerShape::apply_color() {
-	color_picker->_copy_hsv_to_color();
-	color_picker->last_color = color_picker->color;
-	color_picker->set_pick_color(color_picker->color);
+	color_picker->_copy_hsv_okhsl_to_normalized();
+	color_picker->_normalized_apply_intensity_to_color();
+	color_picker->hsv_cached = true;
+	color_picker->okhsl_cached = true;
+	color_picker->_set_pick_color(color_picker->color, true, false);
 
 	if (!color_picker->deferred_mode_enabled) {
 		_emit_color_changed();
@@ -122,10 +124,8 @@ void ColorPickerShape::draw_sv_square(Control *p_control, const Rect2 &p_square,
 		Vector2(p_square.position.x, end.y),
 	};
 
-	Color color1 = color_picker->color;
-	color1.set_hsv(color_picker->h, 1, 1);
-	Color color2 = color1;
-	color2.set_hsv(color_picker->h, 1, 0);
+	Color color1 = Color::from_hsv(color_picker->h, 1, 1);
+	Color color2 = Color::from_hsv(color_picker->h, 1, 0);
 
 	PackedColorArray colors = {
 		Color(1, 1, 1, 1),
@@ -161,11 +161,11 @@ void ColorPickerShape::draw_cursor(Control *p_control, const Vector2 &p_center, 
 	p_control->draw_texture(color_picker->theme_cache.picker_cursor, position);
 }
 
-void ColorPickerShape::draw_circle_cursor(Control *p_control, float p_hue) {
+void ColorPickerShape::draw_circle_cursor(Control *p_control, float p_hue, float p_saturation) {
 	const Vector2 center = p_control->get_size() * 0.5;
 	const Vector2 cursor_pos(
-			center.x + (center.x * Math::cos(p_hue * Math::TAU) * color_picker->s),
-			center.y + (center.y * Math::sin(p_hue * Math::TAU) * color_picker->s));
+			center.x + (center.x * Math::cos(p_hue * Math::TAU) * p_saturation),
+			center.y + (center.y * Math::sin(p_hue * Math::TAU) * p_saturation));
 
 	draw_cursor(p_control, cursor_pos);
 }
@@ -636,7 +636,7 @@ void ColorPickerShapeVHSCircle::_circle_draw() {
 
 void ColorPickerShapeVHSCircle::_circle_overlay_draw() {
 	draw_focus_circle(circle_overlay);
-	draw_circle_cursor(circle_overlay, color_picker->h);
+	draw_circle_cursor(circle_overlay, color_picker->h, color_picker->s);
 }
 
 void ColorPickerShapeVHSCircle::_value_slider_draw() {
@@ -721,7 +721,7 @@ void ColorPickerShapeOKHSLCircle::_circle_draw() {
 
 void ColorPickerShapeOKHSLCircle::_circle_overlay_draw() {
 	draw_focus_circle(circle_overlay);
-	draw_circle_cursor(circle_overlay, color_picker->ok_hsl_h);
+	draw_circle_cursor(circle_overlay, color_picker->ok_hsl_h, color_picker->ok_hsl_s);
 }
 
 void ColorPickerShapeOKHSLCircle::_value_slider_draw() {
