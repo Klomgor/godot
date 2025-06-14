@@ -457,6 +457,19 @@ uint32_t GodotNavigationServer2D::region_get_iteration_id(RID p_region) const {
 	return region->get_iteration_id();
 }
 
+COMMAND_2(region_set_use_async_iterations, RID, p_region, bool, p_enabled) {
+	NavRegion2D *region = region_owner.get_or_null(p_region);
+	ERR_FAIL_NULL(region);
+	region->set_use_async_iterations(p_enabled);
+}
+
+bool GodotNavigationServer2D::region_get_use_async_iterations(RID p_region) const {
+	NavRegion2D *region = region_owner.get_or_null(p_region);
+	ERR_FAIL_NULL_V(region, false);
+
+	return region->get_use_async_iterations();
+}
+
 COMMAND_2(region_set_enabled, RID, p_region, bool, p_enabled) {
 	NavRegion2D *region = region_owner.get_or_null(p_region);
 	ERR_FAIL_NULL(region);
@@ -581,7 +594,7 @@ void GodotNavigationServer2D::region_set_navigation_polygon(RID p_region, Ref<Na
 	NavRegion2D *region = region_owner.get_or_null(p_region);
 	ERR_FAIL_NULL(region);
 
-	region->set_navigation_polygon(p_navigation_polygon);
+	region->set_navigation_mesh(p_navigation_polygon);
 }
 
 int GodotNavigationServer2D::region_get_connections_count(RID p_region) const {
@@ -642,6 +655,13 @@ RID GodotNavigationServer2D::link_create() {
 	NavLink2D *link = link_owner.get_or_null(rid);
 	link->set_self(rid);
 	return rid;
+}
+
+uint32_t GodotNavigationServer2D::link_get_iteration_id(RID p_link) const {
+	NavLink2D *link = link_owner.get_or_null(p_link);
+	ERR_FAIL_NULL_V(link, 0);
+
+	return link->get_iteration_id();
 }
 
 COMMAND_2(link_set_map, RID, p_link, RID, p_map) {

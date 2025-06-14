@@ -71,7 +71,6 @@ void EditorAudioBus::_update_visible_channels() {
 
 void EditorAudioBus::_notification(int p_what) {
 	switch (p_what) {
-		case NOTIFICATION_ENTER_TREE:
 		case NOTIFICATION_THEME_CHANGED: {
 			Ref<Texture2D> active_bus_texture = get_editor_theme_icon(SNAME("BusVuActive"));
 			for (int i = 0; i < CHANNELS_MAX; i++) {
@@ -845,7 +844,7 @@ EditorAudioBus::EditorAudioBus(EditorAudioBuses *p_buses, bool p_is_master) {
 	solo->set_toggle_mode(true);
 	solo->set_tooltip_text(TTR("Solo"));
 	solo->set_accessibility_name(TTRC("Solo"));
-	solo->set_focus_mode(FOCUS_NONE);
+	solo->set_focus_mode(FOCUS_ACCESSIBILITY);
 	solo->connect(SceneStringName(pressed), callable_mp(this, &EditorAudioBus::_solo_toggled));
 	hbc->add_child(solo);
 	mute = memnew(Button);
@@ -853,7 +852,7 @@ EditorAudioBus::EditorAudioBus(EditorAudioBuses *p_buses, bool p_is_master) {
 	mute->set_toggle_mode(true);
 	mute->set_tooltip_text(TTR("Mute"));
 	mute->set_accessibility_name(TTRC("Mute"));
-	mute->set_focus_mode(FOCUS_NONE);
+	mute->set_focus_mode(FOCUS_ACCESSIBILITY);
 	mute->connect(SceneStringName(pressed), callable_mp(this, &EditorAudioBus::_mute_toggled));
 	hbc->add_child(mute);
 	bypass = memnew(Button);
@@ -861,7 +860,7 @@ EditorAudioBus::EditorAudioBus(EditorAudioBuses *p_buses, bool p_is_master) {
 	bypass->set_toggle_mode(true);
 	bypass->set_tooltip_text(TTR("Bypass"));
 	bypass->set_accessibility_name(TTRC("Bypass"));
-	bypass->set_focus_mode(FOCUS_NONE);
+	bypass->set_focus_mode(FOCUS_ACCESSIBILITY);
 	bypass->connect(SceneStringName(pressed), callable_mp(this, &EditorAudioBus::_bypass_toggled));
 	hbc->add_child(bypass);
 	hbc->add_spacer();
@@ -1114,7 +1113,6 @@ EditorAudioBuses *EditorAudioBuses::register_editor() {
 
 void EditorAudioBuses::_notification(int p_what) {
 	switch (p_what) {
-		case NOTIFICATION_ENTER_TREE:
 		case NOTIFICATION_THEME_CHANGED: {
 			bus_scroll->add_theme_style_override(SceneStringName(panel), get_theme_stylebox(SceneStringName(panel), SNAME("Tree")));
 		} break;
