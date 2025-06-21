@@ -42,7 +42,6 @@
 
 void ResourcePreloaderEditor::_notification(int p_what) {
 	switch (p_what) {
-		case NOTIFICATION_ENTER_TREE:
 		case NOTIFICATION_THEME_CHANGED: {
 			load->set_button_icon(get_editor_theme_icon(SNAME("Folder")));
 		} break;
@@ -425,6 +424,6 @@ ResourcePreloaderEditorPlugin::ResourcePreloaderEditorPlugin() {
 	preloader_editor = memnew(ResourcePreloaderEditor);
 	preloader_editor->set_custom_minimum_size(Size2(0, 250) * EDSCALE);
 
-	button = EditorNode::get_bottom_panel()->add_item("ResourcePreloader", preloader_editor, ED_SHORTCUT_AND_COMMAND("bottom_panels/toggle_resource_preloader_bottom_panel", TTRC("Toggle ResourcePreloader Bottom Panel")));
+	button = EditorNode::get_bottom_panel()->add_item(TTRC("ResourcePreloader"), preloader_editor, ED_SHORTCUT_AND_COMMAND("bottom_panels/toggle_resource_preloader_bottom_panel", TTRC("Toggle ResourcePreloader Bottom Panel")));
 	button->hide();
 }
