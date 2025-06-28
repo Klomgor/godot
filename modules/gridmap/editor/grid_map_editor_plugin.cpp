@@ -94,96 +94,45 @@ void GridMapEditor::_menu_option(int p_option) {
 			update_grid();
 
 		} break;
-		case MENU_OPTION_CURSOR_ROTATE_Y: {
-			Basis r;
-			if (input_action == INPUT_PASTE) {
-				r = node->get_basis_with_orthogonal_index(paste_indicator.orientation);
-				r.rotate(Vector3(0, 1, 0), -Math::PI / 2.0);
-				paste_indicator.orientation = node->get_orthogonal_index_from_basis(r);
-				_update_paste_indicator();
-				break;
-			}
 
-			r = node->get_basis_with_orthogonal_index(cursor_rot);
-			r.rotate(Vector3(0, 1, 0), -Math::PI / 2.0);
-			cursor_rot = node->get_orthogonal_index_from_basis(r);
-			_update_cursor_transform();
-		} break;
-		case MENU_OPTION_CURSOR_ROTATE_X: {
-			Basis r;
-			if (input_action == INPUT_PASTE) {
-				r = node->get_basis_with_orthogonal_index(paste_indicator.orientation);
-				r.rotate(Vector3(1, 0, 0), -Math::PI / 2.0);
-				paste_indicator.orientation = node->get_orthogonal_index_from_basis(r);
-				_update_paste_indicator();
-				break;
-			}
-
-			r = node->get_basis_with_orthogonal_index(cursor_rot);
-			r.rotate(Vector3(1, 0, 0), -Math::PI / 2.0);
-			cursor_rot = node->get_orthogonal_index_from_basis(r);
-			_update_cursor_transform();
-		} break;
-		case MENU_OPTION_CURSOR_ROTATE_Z: {
-			Basis r;
-			if (input_action == INPUT_PASTE) {
-				r = node->get_basis_with_orthogonal_index(paste_indicator.orientation);
-				r.rotate(Vector3(0, 0, 1), -Math::PI / 2.0);
-				paste_indicator.orientation = node->get_orthogonal_index_from_basis(r);
-				_update_paste_indicator();
-				break;
-			}
-
-			r = node->get_basis_with_orthogonal_index(cursor_rot);
-			r.rotate(Vector3(0, 0, 1), -Math::PI / 2.0);
-			cursor_rot = node->get_orthogonal_index_from_basis(r);
-			_update_cursor_transform();
-		} break;
-		case MENU_OPTION_CURSOR_BACK_ROTATE_Y: {
-			Basis r;
-			if (input_action == INPUT_PASTE) {
-				r = node->get_basis_with_orthogonal_index(paste_indicator.orientation);
-				r.rotate(Vector3(0, 1, 0), Math::PI / 2.0);
-				paste_indicator.orientation = node->get_orthogonal_index_from_basis(r);
-				_update_paste_indicator();
-				break;
-			}
-
-			r = node->get_basis_with_orthogonal_index(cursor_rot);
-			r.rotate(Vector3(0, 1, 0), Math::PI / 2.0);
-			cursor_rot = node->get_orthogonal_index_from_basis(r);
-			_update_cursor_transform();
-		} break;
-		case MENU_OPTION_CURSOR_BACK_ROTATE_X: {
-			Basis r;
-			if (input_action == INPUT_PASTE) {
-				r = node->get_basis_with_orthogonal_index(paste_indicator.orientation);
-				r.rotate(Vector3(1, 0, 0), Math::PI / 2.0);
-				paste_indicator.orientation = node->get_orthogonal_index_from_basis(r);
-				_update_paste_indicator();
-				break;
-			}
-
-			r = node->get_basis_with_orthogonal_index(cursor_rot);
-			r.rotate(Vector3(1, 0, 0), Math::PI / 2.0);
-			cursor_rot = node->get_orthogonal_index_from_basis(r);
-			_update_cursor_transform();
-		} break;
+		case MENU_OPTION_CURSOR_ROTATE_X:
+		case MENU_OPTION_CURSOR_ROTATE_Y:
+		case MENU_OPTION_CURSOR_ROTATE_Z:
+		case MENU_OPTION_CURSOR_BACK_ROTATE_X:
+		case MENU_OPTION_CURSOR_BACK_ROTATE_Y:
 		case MENU_OPTION_CURSOR_BACK_ROTATE_Z: {
+			Vector3 rotation_axis;
+			float rotation_angle = -Math::PI / 2.0;
+			if (p_option == MENU_OPTION_CURSOR_ROTATE_X || p_option == MENU_OPTION_CURSOR_BACK_ROTATE_X) {
+				rotation_axis.x = (p_option == MENU_OPTION_CURSOR_ROTATE_X) ? 1 : -1;
+			} else if (p_option == MENU_OPTION_CURSOR_ROTATE_Y || p_option == MENU_OPTION_CURSOR_BACK_ROTATE_Y) {
+				rotation_axis.y = (p_option == MENU_OPTION_CURSOR_ROTATE_Y) ? 1 : -1;
+			} else if (p_option == MENU_OPTION_CURSOR_ROTATE_Z || p_option == MENU_OPTION_CURSOR_BACK_ROTATE_Z) {
+				rotation_axis.z = (p_option == MENU_OPTION_CURSOR_ROTATE_Z) ? 1 : -1;
+			}
+
 			Basis r;
 			if (input_action == INPUT_PASTE) {
 				r = node->get_basis_with_orthogonal_index(paste_indicator.orientation);
-				r.rotate(Vector3(0, 0, 1), Math::PI / 2.0);
+				r.rotate(rotation_axis, rotation_angle);
 				paste_indicator.orientation = node->get_orthogonal_index_from_basis(r);
 				_update_paste_indicator();
-				break;
+			} else if (_has_selection()) {
+				Array cells = _get_selected_cells();
+				for (int i = 0; i < cells.size(); i++) {
+					Vector3i cell = cells[i];
+					r = node->get_basis_with_orthogonal_index(node->get_cell_item_orientation(cell));
+					r.rotate(rotation_axis, rotation_angle);
+					node->set_cell_item(cell, node->get_cell_item(cell), node->get_orthogonal_index_from_basis(r));
+				}
+			} else {
+				r = node->get_basis_with_orthogonal_index(cursor_rot);
+				r.rotate(rotation_axis, rotation_angle);
+				cursor_rot = node->get_orthogonal_index_from_basis(r);
+				_update_cursor_transform();
 			}
-
-			r = node->get_basis_with_orthogonal_index(cursor_rot);
-			r.rotate(Vector3(0, 0, 1), Math::PI / 2.0);
-			cursor_rot = node->get_orthogonal_index_from_basis(r);
-			_update_cursor_transform();
 		} break;
+
 		case MENU_OPTION_CURSOR_CLEAR_ROTATION: {
 			if (input_action == INPUT_PASTE) {
 				paste_indicator.orientation = 0;
@@ -249,6 +198,10 @@ void GridMapEditor::_update_cursor_transform() {
 	cursor_transform = node->get_global_transform() * cursor_transform;
 
 	if (mode_buttons_group->get_pressed_button() == paint_mode_button) {
+		// Auto-deselect the selection when painting.
+		if (selection.active) {
+			_set_selection(false);
+		}
 		// Rotation is only applied in paint mode, we don't want the cursor box to rotate otherwise.
 		cursor_transform.basis = node->get_basis_with_orthogonal_index(cursor_rot);
 		if (selected_palette >= 0 && node && node->get_mesh_library().is_valid()) {
@@ -1384,7 +1337,7 @@ GridMapEditor::GridMapEditor() {
 	settings_pick_distance->set_min(500.0f);
 	settings_pick_distance->set_step(1.0f);
 	settings_pick_distance->set_value(EDITOR_GET("editors/grid_map/pick_distance"));
-	settings_pick_distance->set_accessibility_name(TTRC("Pick Distance"));
+	settings_pick_distance->set_accessibility_name(TTRC("Pick Distance:"));
 	settings_vbc->add_margin_child(TTR("Pick Distance:"), settings_pick_distance);
 
 	options->get_popup()->connect(SceneStringName(id_pressed), callable_mp(this, &GridMapEditor::_menu_option));
@@ -1417,7 +1370,7 @@ GridMapEditor::GridMapEditor() {
 	select_mode_button->set_toggle_mode(true);
 	select_mode_button->set_button_group(mode_buttons_group);
 	select_mode_button->set_shortcut(ED_SHORTCUT("grid_map/selection_tool", TTRC("Selection"), Key::Q, true));
-	select_mode_button->set_accessibility_name(TTRC("Select"));
+	select_mode_button->set_accessibility_name(TTRC("Selection"));
 	select_mode_button->connect(SceneStringName(toggled),
 			callable_mp(this, &GridMapEditor::_on_tool_mode_changed).unbind(1));
 	mode_buttons->add_child(select_mode_button);
@@ -1507,7 +1460,7 @@ GridMapEditor::GridMapEditor() {
 	rotate_x_button = memnew(Button);
 	rotate_x_button->set_theme_type_variation(SceneStringName(FlatButton));
 	rotate_x_button->set_shortcut(ED_SHORTCUT("grid_map/cursor_rotate_x", TTRC("Cursor Rotate X"), Key::A, true));
-	rotate_x_button->set_accessibility_name(TTRC("Rotate X"));
+	rotate_x_button->set_accessibility_name(TTRC("Cursor Rotate X"));
 	rotate_x_button->connect(SceneStringName(pressed),
 			callable_mp(this, &GridMapEditor::_menu_option).bind(MENU_OPTION_CURSOR_ROTATE_X));
 	rotation_buttons->add_child(rotate_x_button);
@@ -1516,7 +1469,7 @@ GridMapEditor::GridMapEditor() {
 	rotate_y_button = memnew(Button);
 	rotate_y_button->set_theme_type_variation(SceneStringName(FlatButton));
 	rotate_y_button->set_shortcut(ED_SHORTCUT("grid_map/cursor_rotate_y", TTRC("Cursor Rotate Y"), Key::S, true));
-	rotate_y_button->set_accessibility_name(TTRC("Rotate Y"));
+	rotate_y_button->set_accessibility_name(TTRC("Cursor Rotate Y"));
 	rotate_y_button->connect(SceneStringName(pressed),
 			callable_mp(this, &GridMapEditor::_menu_option).bind(MENU_OPTION_CURSOR_ROTATE_Y));
 	rotation_buttons->add_child(rotate_y_button);
@@ -1525,6 +1478,7 @@ GridMapEditor::GridMapEditor() {
 	rotate_z_button = memnew(Button);
 	rotate_z_button->set_theme_type_variation(SceneStringName(FlatButton));
 	rotate_z_button->set_shortcut(ED_SHORTCUT("grid_map/cursor_rotate_z", TTRC("Cursor Rotate Z"), Key::D, true));
+	rotate_z_button->set_accessibility_name(TTRC("Cursor Rotate Z"));
 	rotate_z_button->connect(SceneStringName(pressed),
 			callable_mp(this, &GridMapEditor::_menu_option).bind(MENU_OPTION_CURSOR_ROTATE_Z));
 	rotation_buttons->add_child(rotate_z_button);
@@ -1540,7 +1494,7 @@ GridMapEditor::GridMapEditor() {
 	floor->set_min(-32767);
 	floor->set_max(32767);
 	floor->set_step(1);
-	floor->set_accessibility_name(TTRC("Grid Floor"));
+	floor->set_accessibility_name(TTRC("Change Grid Floor:"));
 	floor->set_tooltip_text(
 			vformat(TTR("Change Grid Floor:\nPrevious Plane (%s)\nNext Plane (%s)"),
 					ED_GET_SHORTCUT("grid_map/previous_floor")->get_as_text(),
@@ -1807,7 +1761,7 @@ void GridMapEditorPlugin::_notification(int p_what) {
 			grid_map_editor->set_custom_minimum_size(Size2(0, 200) * EDSCALE);
 			grid_map_editor->hide();
 
-			panel_button = EditorNode::get_bottom_panel()->add_item(TTR("GridMap"), grid_map_editor, ED_SHORTCUT_AND_COMMAND("bottom_panels/toggle_grid_map_bottom_panel", TTRC("Toggle GridMap Bottom Panel")));
+			panel_button = EditorNode::get_bottom_panel()->add_item(TTRC("GridMap"), grid_map_editor, ED_SHORTCUT_AND_COMMAND("bottom_panels/toggle_grid_map_bottom_panel", TTRC("Toggle GridMap Bottom Panel")));
 			panel_button->hide();
 		} break;
 		case NOTIFICATION_EXIT_TREE: {

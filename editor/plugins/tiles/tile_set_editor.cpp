@@ -846,7 +846,6 @@ TileSetEditor::TileSetEditor() {
 	source_sort_button->set_flat(false);
 	source_sort_button->set_theme_type_variation(SceneStringName(FlatButton));
 	source_sort_button->set_tooltip_text(TTR("Sort Sources"));
-	source_sort_button->set_accessibility_name(TTRC("Sort Sources"));
 
 	PopupMenu *p = source_sort_button->get_popup();
 	p->connect(SceneStringName(id_pressed), callable_mp(this, &TileSetEditor::_set_source_sort));
@@ -1007,7 +1006,7 @@ void TileSourceInspectorPlugin::_confirm_change_id() {
 }
 
 bool TileSourceInspectorPlugin::can_handle(Object *p_object) {
-	return p_object->is_class("TileSetAtlasSourceProxyObject") || p_object->is_class("TileSetScenesCollectionProxyObject");
+	return p_object && (p_object->is_class("TileSetAtlasSourceProxyObject") || p_object->is_class("TileSetScenesCollectionProxyObject"));
 }
 
 bool TileSourceInspectorPlugin::parse_property(Object *p_object, const Variant::Type p_type, const String &p_path, const PropertyHint p_hint, const String &p_hint_text, const BitField<PropertyUsageFlags> p_usage, const bool p_wide) {

@@ -35,7 +35,7 @@
 #include "core/os/os.h"
 #include "drivers/unix/ip_unix.h"
 
-#ifdef __GLIBC__
+#if defined(__GLIBC__) || defined(WEB_ENABLED)
 #include <iconv.h>
 #include <langinfo.h>
 #define gd_iconv_t iconv_t
@@ -58,7 +58,7 @@ class OS_Unix : public OS {
 	HashMap<ProcessID, ProcessInfo> *process_map = nullptr;
 	Mutex process_map_mutex;
 
-#ifdef __GLIBC__
+#if defined(__GLIBC__) || defined(WEB_ENABLED)
 	bool _iconv_ok = true;
 #else
 	bool _iconv_ok = false;
@@ -71,7 +71,7 @@ class OS_Unix : public OS {
 	void _load_iconv();
 #endif
 
-	static int _wait_for_pid_completion(const pid_t p_pid, int *r_status, int p_options);
+	static int _wait_for_pid_completion(const pid_t p_pid, int *r_status, int p_options, pid_t *r_pid = nullptr);
 	bool _check_pid_is_running(const pid_t p_pid, int *r_status) const;
 
 protected:

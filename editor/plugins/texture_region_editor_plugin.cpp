@@ -818,11 +818,11 @@ void TextureRegionEditor::_update_autoslice() {
 void TextureRegionEditor::_notification(int p_what) {
 	switch (p_what) {
 		case EditorSettings::NOTIFICATION_EDITOR_SETTINGS_CHANGED: {
-			if (!EditorSettings::get_singleton()->check_changed_settings_in_group("editors/panning")) {
-				break;
+			if (EditorSettings::get_singleton()->check_changed_settings_in_group("editors/panning")) {
+				panner->setup((ViewPanner::ControlScheme)EDITOR_GET("editors/panning/sub_editors_panning_scheme").operator int(), ED_GET_SHORTCUT("canvas_item_editor/pan_view"), bool(EDITOR_GET("editors/panning/simple_panning")));
+				panner->setup_warped_panning(get_viewport(), EDITOR_GET("editors/panning/warped_mouse_panning"));
 			}
-			[[fallthrough]];
-		}
+		} break;
 
 		case NOTIFICATION_ENTER_TREE: {
 			get_tree()->connect("node_removed", callable_mp(this, &TextureRegionEditor::_node_removed));
@@ -1154,7 +1154,7 @@ TextureRegionEditor::TextureRegionEditor() {
 
 	snap_mode_button = memnew(OptionButton);
 	hb_tools->add_child(snap_mode_button);
-	snap_mode_button->set_accessibility_name(TTRC("Snap Mode"));
+	snap_mode_button->set_accessibility_name(TTRC("Snap Mode:"));
 	snap_mode_button->add_item(TTR("None"), 0);
 	snap_mode_button->add_item(TTR("Pixel Snap"), 1);
 	snap_mode_button->add_item(TTR("Grid Snap"), 2);
@@ -1256,21 +1256,18 @@ TextureRegionEditor::TextureRegionEditor() {
 	zoom_out = memnew(Button);
 	zoom_out->set_flat(true);
 	zoom_out->set_tooltip_text(TTR("Zoom Out"));
-	zoom_out->set_accessibility_name(TTRC("Zoom Out"));
 	zoom_out->connect(SceneStringName(pressed), callable_mp(this, &TextureRegionEditor::_zoom_out));
 	zoom_hb->add_child(zoom_out);
 
 	zoom_reset = memnew(Button);
 	zoom_reset->set_flat(true);
 	zoom_reset->set_tooltip_text(TTR("Zoom Reset"));
-	zoom_reset->set_accessibility_name(TTRC("Reset Zoom"));
 	zoom_reset->connect(SceneStringName(pressed), callable_mp(this, &TextureRegionEditor::_zoom_reset));
 	zoom_hb->add_child(zoom_reset);
 
 	zoom_in = memnew(Button);
 	zoom_in->set_flat(true);
 	zoom_in->set_tooltip_text(TTR("Zoom In"));
-	zoom_in->set_accessibility_name(TTRC("Zoom In"));
 	zoom_in->connect(SceneStringName(pressed), callable_mp(this, &TextureRegionEditor::_zoom_in));
 	zoom_hb->add_child(zoom_in);
 
