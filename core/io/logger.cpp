@@ -49,8 +49,6 @@ bool Logger::should_log(bool p_err) {
 	return (!p_err || CoreGlobals::print_error_enabled) && (p_err || CoreGlobals::print_line_enabled);
 }
 
-bool Logger::_flush_stdout_on_print = true;
-
 void Logger::set_flush_stdout_on_print(bool value) {
 	_flush_stdout_on_print = value;
 }
@@ -60,24 +58,7 @@ void Logger::log_error(const char *p_function, const char *p_file, int p_line, c
 		return;
 	}
 
-	const char *err_type = "ERROR";
-	switch (p_type) {
-		case ERR_ERROR:
-			err_type = "ERROR";
-			break;
-		case ERR_WARNING:
-			err_type = "WARNING";
-			break;
-		case ERR_SCRIPT:
-			err_type = "SCRIPT ERROR";
-			break;
-		case ERR_SHADER:
-			err_type = "SHADER ERROR";
-			break;
-		default:
-			ERR_PRINT("Unknown error type");
-			break;
-	}
+	const char *err_type = error_type_string(p_type);
 
 	const char *err_details;
 	if (p_rationale && *p_rationale) {
@@ -90,7 +71,9 @@ void Logger::log_error(const char *p_function, const char *p_file, int p_line, c
 	logf_error("   at: %s (%s:%i)\n", p_function, p_file, p_line);
 
 	for (const Ref<ScriptBacktrace> &backtrace : p_script_backtraces) {
-		logf_error("%s\n", backtrace->format(3).utf8().get_data());
+		if (!backtrace->is_empty()) {
+			logf_error("%s\n", backtrace->format(3).utf8().get_data());
+		}
 	}
 }
 
