@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  container.h                                                           */
+/*  test_animation_player.h                                               */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -30,47 +30,35 @@
 
 #pragma once
 
-#include "scene/gui/control.h"
+#include "scene/animation/animation_player.h"
+#include "scene/resources/animation.h"
+#include "tests/test_macros.h"
 
-class Container : public Control {
-	GDCLASS(Container, Control);
+namespace TestAnimationPlayer {
 
-	bool pending_sort = false;
-	void _sort_children();
-	void _child_minsize_changed();
+TEST_CASE("[AnimationPlayer] get & set default_blend_time") {
+	AnimationPlayer *animation_player = memnew(AnimationPlayer);
+	animation_player->set_default_blend_time(4.0);
 
-protected:
-	enum class SortableVisibilityMode {
-		VISIBLE,
-		VISIBLE_IN_TREE,
-		IGNORE,
-	};
+	CHECK(animation_player->get_default_blend_time() == doctest::Approx(4.0f));
+	memdelete(animation_player);
+}
 
-	void queue_sort();
-	Control *as_sortable_control(Node *p_node, SortableVisibilityMode p_visibility_mode = SortableVisibilityMode::VISIBLE_IN_TREE) const;
+TEST_CASE("[AnimationPlayer] get & set blend_time") {
+	String anim1 = "animation1";
+	String anim2 = "animation2";
+	const Ref<Animation> animation1 = memnew(Animation);
+	const Ref<Animation> animation2 = memnew(Animation);
+	const Ref<AnimationLibrary> animation_library = memnew(AnimationLibrary);
+	animation_library->add_animation(anim1, animation1);
+	animation_library->add_animation(anim2, animation2);
 
-	virtual void add_child_notify(Node *p_child) override;
-	virtual void move_child_notify(Node *p_child) override;
-	virtual void remove_child_notify(Node *p_child) override;
+	AnimationPlayer *animation_player = memnew(AnimationPlayer);
+	animation_player->add_animation_library("", animation_library);
 
-	GDVIRTUAL0RC(Vector<int>, _get_allowed_size_flags_horizontal)
-	GDVIRTUAL0RC(Vector<int>, _get_allowed_size_flags_vertical)
+	animation_player->set_blend_time(anim1, anim2, 4.0);
+	CHECK(animation_player->get_blend_time(anim1, anim2) == doctest::Approx(4.0f));
+	memdelete(animation_player);
+}
 
-	void _notification(int p_what);
-	static void _bind_methods();
-
-public:
-	enum {
-		NOTIFICATION_PRE_SORT_CHILDREN = 50,
-		NOTIFICATION_SORT_CHILDREN = 51,
-	};
-
-	void fit_child_in_rect(RequiredParam<Control> rp_child, const Rect2 &p_rect);
-
-	virtual Vector<int> get_allowed_size_flags_horizontal() const;
-	virtual Vector<int> get_allowed_size_flags_vertical() const;
-
-	PackedStringArray get_configuration_warnings() const override;
-
-	Container();
-};
+} // namespace TestAnimationPlayer
